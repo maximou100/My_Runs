@@ -1,23 +1,27 @@
-//
-//  My_RunsApp.swift
-//  My_Runs
-//
-//  Created by Maxime LECLERCQ on 5/1/26.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct My_RunsApp: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
+        let schema = Schema([Run.self, Lap.self, StoredTrackpoints.self])
+        let cloudConfig = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .automatic
+        )
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [cloudConfig])
+            print("[MyRuns] ModelContainer initialized with CloudKit sync.")
+            return container
+        } catch {
+            print("[MyRuns] CloudKit ModelContainer failed: \(error)")
+            print("[MyRuns] Falling back to local-only ModelContainer.")
+        }
+
+        let localConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        do {
+            return try ModelContainer(for: schema, configurations: [localConfig])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -26,6 +30,7 @@ struct My_RunsApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.dark)
         }
         .modelContainer(sharedModelContainer)
     }
