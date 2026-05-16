@@ -140,3 +140,13 @@ Personal project. Not currently licensed for redistribution.
 - TCX format reverse-engineered from Garmin and Nike Run Club exports
 - Charts via [Swift Charts](https://developer.apple.com/documentation/charts)
 - Icon: custom design
+
+
+<img width="603" height="1311" alt="IMG_1622" src="https://github.com/user-attachments/assets/5acd7c20-ca03-4bd4-a933-793f4c71a9df" />
+<img width="603" height="1311" alt="IMG_1621" src="https://github.com/user-attachments/assets/5743d8c1-e5ff-431f-b40f-e57c3e4b3425" />
+<img width="603" height="1311" alt="IMG_1620" src="https://github.com/user-attachments/assets/bbd53de7-ae1c-4ada-ab7e-53d71f0de098" />
+<img width="603" height="1311" alt="IMG_1619" src="https://github.com/user-attachments/assets/b252bc69-1c06-4704-baac-945e5cb847ab" />
+<img width="603" height="1311" alt="IMG_1618" src="https://github.com/user-attachments/assets/af124d7c-41f2-4d74-b23e-a753d9aafbd2" />
+<img width="603" height="1311" alt="IMG_1617" src="https://github.com/user-attachments/assets/8f1e58c3-e26a-4f1a-8788-538d685767cb" />
+<img width="603" height="1311" alt="IMG_1616" src="https://github.com/user-attachments/assets/3a7ace00-5f16-4d91-a756-59b6d8676b3c" />
+<img width="603" height="1311" alt="IMG_1615" src="https://github.com/user-attachments/assets/bf3bb2bb-1826-4070-b428-603fc8641ba3" />
