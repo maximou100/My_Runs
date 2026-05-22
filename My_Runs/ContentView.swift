@@ -14,8 +14,6 @@ struct ContentView: View {
                 .tabItem { Label("Health", systemImage: "heart.fill") }
             ImportView()
                 .tabItem { Label("Import", systemImage: "arrow.down.circle.fill") }
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
         .tint(Theme.accent)
     }

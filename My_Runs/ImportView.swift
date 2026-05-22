@@ -14,11 +14,23 @@ struct ImportView: View {
     @State private var showClearConfirm = false
     @State private var lastResult: (imported: Int, skipped: Int, errors: Int)?
 
+    @State private var stravaConnected = StravaService.shared.isConnected
+    @State private var stravaSyncing = false
+    @State private var stravaStatus = ""
+    @State private var stravaError: String?
+
+    @State private var showStravaSetup = false
+    @State private var showGarminGuide = false
+    @State private var showRunkeeperGuide = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     importCard
+                    stravaCard
+                    garminCard
+                    runkeeperCard
                     if isImporting { progressCard }
                     if isGeocoding { geocodingCard }
                     if let r = lastResult { resultCard(r) }
@@ -42,6 +54,15 @@ struct ImportView: View {
             } message: {
                 Text("This will permanently delete all \(runs.count) imported runs.")
             }
+            .sheet(isPresented: $showStravaSetup) {
+                StravaSetupView()
+            }
+            .sheet(isPresented: $showGarminGuide) {
+                GarminGuideView()
+            }
+            .sheet(isPresented: $showRunkeeperGuide) {
+                RunkeeperGuideView()
+            }
         }
     }
 
@@ -53,11 +74,11 @@ struct ImportView: View {
                 .font(.system(size: 48))
                 .foregroundStyle(Theme.accent)
 
-            Text("Import .tcx Files")
+            Text("Import Activity Files")
                 .font(.title2.bold())
                 .foregroundStyle(.white)
 
-            Text("Select running data files exported from Nike+ Run Club, Garmin, or other fitness apps.")
+            Text("Import .tcx, .gpx, or .fit files exported from Nike+ Run Club, Garmin, Runkeeper, Strava, or other fitness apps.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -75,6 +96,149 @@ struct ImportView: View {
             .disabled(isImporting)
         }
         .padding(24)
+        .background(Theme.bgCard, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 1))
+    }
+
+    private var stravaCard: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "figure.run.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Color(hex: "fc5200"))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Strava")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text(stravaConnected ? "Connected" : "Sync runs directly from your account")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Spacer()
+                Button {
+                    showStravaSetup = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.title3)
+                        .foregroundStyle(Theme.accent)
+                }
+            }
+
+            if stravaConnected {
+                Button {
+                    syncStrava()
+                } label: {
+                    Label(stravaSyncing ? "Syncing…" : "Sync from Strava",
+                          systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(hex: "fc5200"))
+                .disabled(stravaSyncing || isImporting)
+
+                Button(role: .destructive) {
+                    StravaService.shared.disconnect()
+                    stravaConnected = false
+                    stravaStatus = ""
+                } label: {
+                    Text("Disconnect")
+                        .font(.caption)
+                }
+                .disabled(stravaSyncing)
+            } else {
+                Button {
+                    connectStrava()
+                } label: {
+                    Label("Connect Strava", systemImage: "link")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(hex: "fc5200"))
+                .disabled(stravaSyncing)
+
+                Button {
+                    showStravaSetup = true
+                } label: {
+                    Text("How to set up your own API credentials")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.accent)
+                }
+            }
+
+            if !stravaStatus.isEmpty {
+                HStack(spacing: 8) {
+                    if stravaSyncing { ProgressView().tint(Theme.accent) }
+                    Text(stravaStatus)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                }
+            }
+            if let err = stravaError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(Theme.danger)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(20)
+        .background(Theme.bgCard, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 1))
+    }
+
+    private var garminCard: some View {
+        sourceGuideCard(
+            iconName: "applewatch.side.right",
+            iconColor: Color(hex: "007cc3"),
+            title: "Garmin Connect",
+            subtitle: "No direct API — import via Apple Health or .tcx export."
+        ) { showGarminGuide = true }
+    }
+
+    private var runkeeperCard: some View {
+        sourceGuideCard(
+            iconName: "figure.run",
+            iconColor: Color(hex: "00a6d6"),
+            title: "Runkeeper",
+            subtitle: "Public API closed. Export your activities and import as .tcx."
+        ) { showRunkeeperGuide = true }
+    }
+
+    private func sourceGuideCard(iconName: String, iconColor: Color,
+                                 title: String, subtitle: String,
+                                 action: @escaping () -> Void) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: iconName)
+                    .font(.system(size: 30))
+                    .foregroundStyle(iconColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Spacer()
+            }
+
+            Button {
+                action()
+            } label: {
+                Label("How to import", systemImage: "questionmark.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+            }
+            .buttonStyle(.bordered)
+            .tint(iconColor)
+        }
+        .padding(20)
         .background(Theme.bgCard, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 1))
     }
@@ -184,33 +348,32 @@ struct ImportView: View {
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
-            let tcxURLs = urls.filter {
-                let ext = $0.pathExtension.lowercased()
-                return ext == "tcx" || ext == "xml"
-            }
-            guard !tcxURLs.isEmpty else {
-                importStatus = "No .tcx files selected."
+            let supported = urls.filter { Self.supportedExtensions.contains($0.pathExtension.lowercased()) }
+            guard !supported.isEmpty else {
+                importStatus = "No supported files selected (.tcx, .gpx, .fit)."
                 return
             }
             lastResult = nil
             isImporting = true
-            importFiles(tcxURLs)
+            importFiles(supported)
         case .failure:
             importStatus = "Could not access files."
         }
     }
 
+    private static let supportedExtensions: Set<String> = ["tcx", "xml", "gpx", "fit"]
+
     private func importFiles(_ urls: [URL]) {
         let existingNames = Set(runs.map { $0.fileName })
 
-        var toImport: [(url: URL, fileName: String)] = []
+        var toImport: [(url: URL, fileName: String, ext: String)] = []
         var skippedCount = 0
         for url in urls {
             let fileName = url.lastPathComponent
             if existingNames.contains(fileName) {
                 skippedCount += 1
             } else {
-                toImport.append((url, fileName))
+                toImport.append((url, fileName, url.pathExtension.lowercased()))
             }
         }
 
@@ -230,62 +393,36 @@ struct ImportView: View {
                 importStatus = "Importing \(index + 1) of \(total)..."
 
                 let url = item.url
-                let workResult = await Task.detached {
-                    guard url.startAccessingSecurityScopedResource() else { return (nil as TCXParserService.LiteResult?, nil as Data?) }
+                let ext = item.ext
+                let parsed = await Task.detached { () -> ParsedFile? in
+                    guard url.startAccessingSecurityScopedResource() else { return nil }
                     defer { url.stopAccessingSecurityScopedResource() }
 
                     var fileData: Data?
                     autoreleasepool { fileData = try? Data(contentsOf: url) }
-                    guard let data = fileData, !data.isEmpty else { return (nil, nil) }
+                    guard let data = fileData, !data.isEmpty else { return nil }
 
-                    let parsed: TCXParserService.LiteResult? = autoreleasepool {
-                        let parser = TCXParserService()
-                        return parser.parseLite(data: data)
-                    }
-                    return (parsed, data)
+                    return Self.parseFile(data: data, ext: ext)
                 }.value
 
-                guard let parsed = workResult.0, let data = workResult.1 else {
+                guard let parsed else {
                     errors += 1; continue
                 }
 
-                let avgPace = parsed.totalDistanceM > 0 && parsed.totalTimeS > 0
-                    ? (parsed.totalTimeS / 60) / (parsed.totalDistanceM / 1000) : 0.0
-
-                let laps = parsed.laps.map {
-                    Lap(startTime: $0.startTime, totalTimeS: $0.totalTimeS,
-                        distanceM: $0.distanceM, calories: $0.calories,
-                        avgHeartRate: $0.avgHeartRate, maxHeartRate: $0.maxHeartRate)
-                }
-
                 let runId = UUID()
-                let run = Run(
-                    id: runId,
-                    fileName: item.fileName,
-                    sport: parsed.sport,
-                    startTime: parsed.startTime,
-                    totalDistanceM: parsed.totalDistanceM,
-                    totalTimeS: parsed.totalTimeS,
-                    calories: parsed.totalCalories,
-                    avgPaceMinPerKm: avgPace,
-                    maxSpeedMps: parsed.maxSpeedMps,
-                    elevationGainM: parsed.elevationGainM,
-                    elevationLossM: parsed.elevationLossM,
-                    startLat: parsed.firstLat,
-                    startLng: parsed.firstLng,
-                    category: RunCategory.from(distanceM: parsed.totalDistanceM),
-                    avgHeartRate: parsed.avgHeartRate,
-                    maxHeartRate: parsed.maxHeartRate,
-                    laps: laps
-                )
+                let run = makeRun(id: runId, fileName: item.fileName, summary: parsed.summary)
                 modelContext.insert(run)
 
                 if (index + 1) % 20 == 0 || index == total - 1 {
                     try? modelContext.save()
                 }
 
-                let capturedData = data
-                Task.detached { TrackpointStore.saveRawTCX(runId: runId, data: capturedData) }
+                switch parsed.save {
+                case .rawTCX(let data):
+                    Task.detached { TrackpointStore.saveRawTCX(runId: runId, data: data) }
+                case .trackpoints(let points):
+                    Task.detached { TrackpointStore.saveTrackpoints(runId: runId, trackpoints: points) }
+                }
 
                 imported += 1
             }
@@ -297,6 +434,104 @@ struct ImportView: View {
             if imported > 0 { Haptics.notification(.success) }
             geocodeNewRuns()
         }
+    }
+
+    private struct ParsedSummary: Sendable {
+        let sport: String
+        let startTime: Date
+        let laps: [TCXParserService.ParsedLap]
+        let totalDistanceM: Double
+        let totalTimeS: Double
+        let totalCalories: Int
+        let avgHeartRate: Int?
+        let maxHeartRate: Int?
+        let maxSpeedMps: Double
+        let elevationGainM: Double
+        let elevationLossM: Double
+        let firstLat: Double
+        let firstLng: Double
+    }
+
+    private enum SaveBlob: Sendable {
+        case rawTCX(Data)
+        case trackpoints([TrackpointData])
+    }
+
+    private struct ParsedFile: Sendable {
+        let summary: ParsedSummary
+        let save: SaveBlob
+    }
+
+    nonisolated private static func parseFile(data: Data, ext: String) -> ParsedFile? {
+        switch ext {
+        case "tcx", "xml":
+            guard let r = autoreleasepool(invoking: { TCXParserService().parseLite(data: data) }) else { return nil }
+            let summary = ParsedSummary(
+                sport: r.sport, startTime: r.startTime, laps: r.laps,
+                totalDistanceM: r.totalDistanceM, totalTimeS: r.totalTimeS,
+                totalCalories: r.totalCalories,
+                avgHeartRate: r.avgHeartRate, maxHeartRate: r.maxHeartRate,
+                maxSpeedMps: r.maxSpeedMps,
+                elevationGainM: r.elevationGainM, elevationLossM: r.elevationLossM,
+                firstLat: r.firstLat, firstLng: r.firstLng
+            )
+            return ParsedFile(summary: summary, save: .rawTCX(data))
+        case "gpx":
+            guard let r = autoreleasepool(invoking: { GPXParserService().parseLite(data: data) }) else { return nil }
+            let summary = ParsedSummary(
+                sport: r.sport, startTime: r.startTime, laps: r.laps,
+                totalDistanceM: r.totalDistanceM, totalTimeS: r.totalTimeS,
+                totalCalories: r.totalCalories,
+                avgHeartRate: r.avgHeartRate, maxHeartRate: r.maxHeartRate,
+                maxSpeedMps: r.maxSpeedMps,
+                elevationGainM: r.elevationGainM, elevationLossM: r.elevationLossM,
+                firstLat: r.firstLat, firstLng: r.firstLng
+            )
+            return ParsedFile(summary: summary, save: .trackpoints(r.trackpoints))
+        case "fit":
+            guard let r = autoreleasepool(invoking: { FITParserService().parseLite(data: data) }) else { return nil }
+            let summary = ParsedSummary(
+                sport: r.sport, startTime: r.startTime, laps: r.laps,
+                totalDistanceM: r.totalDistanceM, totalTimeS: r.totalTimeS,
+                totalCalories: r.totalCalories,
+                avgHeartRate: r.avgHeartRate, maxHeartRate: r.maxHeartRate,
+                maxSpeedMps: r.maxSpeedMps,
+                elevationGainM: r.elevationGainM, elevationLossM: r.elevationLossM,
+                firstLat: r.firstLat, firstLng: r.firstLng
+            )
+            return ParsedFile(summary: summary, save: .trackpoints(r.trackpoints))
+        default:
+            return nil
+        }
+    }
+
+    private func makeRun(id: UUID, fileName: String, summary s: ParsedSummary) -> Run {
+        let avgPace = s.totalDistanceM > 0 && s.totalTimeS > 0
+            ? (s.totalTimeS / 60) / (s.totalDistanceM / 1000) : 0.0
+        let laps = s.laps.map {
+            Lap(startTime: $0.startTime, totalTimeS: $0.totalTimeS,
+                distanceM: $0.distanceM, calories: $0.calories,
+                avgHeartRate: $0.avgHeartRate, maxHeartRate: $0.maxHeartRate)
+        }
+        return Run(
+            id: id,
+            fileName: fileName,
+            sport: s.sport,
+            startTime: s.startTime,
+            totalDistanceM: s.totalDistanceM,
+            totalTimeS: s.totalTimeS,
+            calories: s.totalCalories,
+            avgPaceMinPerKm: avgPace,
+            maxSpeedMps: s.maxSpeedMps,
+            elevationGainM: s.elevationGainM,
+            elevationLossM: s.elevationLossM,
+            startLat: s.firstLat,
+            startLng: s.firstLng,
+            category: RunCategory.from(distanceM: s.totalDistanceM),
+            avgHeartRate: s.avgHeartRate,
+            maxHeartRate: s.maxHeartRate,
+            laps: laps
+        )
     }
 
     private func geocodeNewRuns() {
@@ -324,6 +559,130 @@ struct ImportView: View {
             isGeocoding = false
             geocodeStatus = ""
         }
+    }
+
+    // MARK: - Strava
+
+    private func connectStrava() {
+        stravaError = nil
+        stravaStatus = "Opening Strava…"
+        Task {
+            do {
+                try await StravaService.shared.connect()
+                stravaConnected = true
+                stravaStatus = "Connected. Tap Sync to import your runs."
+                Haptics.notification(.success)
+            } catch StravaService.StravaError.authCancelled {
+                stravaStatus = ""
+            } catch {
+                stravaError = error.localizedDescription
+                stravaStatus = ""
+            }
+        }
+    }
+
+    private func syncStrava() {
+        stravaError = nil
+        stravaSyncing = true
+        stravaStatus = "Fetching activity list…"
+        lastResult = nil
+
+        Task {
+            do {
+                let activities = try await StravaService.shared.fetchAllRunActivities { count in
+                    stravaStatus = "Found \(count) runs…"
+                }
+
+                let existingNames = Set(runs.map { $0.fileName })
+                let toImport = activities.filter { !existingNames.contains("strava-\($0.id).json") }
+
+                guard !toImport.isEmpty else {
+                    stravaSyncing = false
+                    stravaStatus = "All \(activities.count) runs are already imported."
+                    return
+                }
+
+                var imported = 0
+                var errors = 0
+                let total = toImport.count
+
+                for (index, activity) in toImport.enumerated() {
+                    stravaStatus = "Downloading \(index + 1) of \(total)…"
+                    let startTime = StravaService.shared.startDate(for: activity)
+                    do {
+                        let (points, elevLoss) = try await StravaService.shared.fetchTrackpoints(
+                            activityId: activity.id, startTime: startTime
+                        )
+                        insertStravaRun(activity: activity, startTime: startTime,
+                                        trackpoints: points, elevationLossM: elevLoss)
+                        imported += 1
+                        if (index + 1) % 10 == 0 { try? modelContext.save() }
+                    } catch {
+                        errors += 1
+                    }
+                }
+                try? modelContext.save()
+
+                stravaSyncing = false
+                stravaStatus = ""
+                lastResult = (imported, activities.count - toImport.count, errors)
+                if imported > 0 { Haptics.notification(.success) }
+                geocodeNewRuns()
+            } catch {
+                stravaSyncing = false
+                stravaStatus = ""
+                stravaError = error.localizedDescription
+            }
+        }
+    }
+
+    private func insertStravaRun(activity: StravaService.ActivitySummary,
+                                 startTime: Date,
+                                 trackpoints: [TrackpointData],
+                                 elevationLossM: Double) {
+        let distanceM = activity.distance
+        let timeS = activity.moving_time > 0 ? activity.moving_time : activity.elapsed_time
+        let avgPace = (distanceM > 0 && timeS > 0)
+            ? (timeS / 60) / (distanceM / 1000)
+            : 0
+
+        let startLat = trackpoints.first?.lat ?? activity.start_latlng?.first ?? 0
+        let startLng = trackpoints.first?.lng ?? activity.start_latlng?.dropFirst().first ?? 0
+
+        let runId = UUID()
+        let synthLap = Lap(
+            startTime: startTime,
+            totalTimeS: timeS,
+            distanceM: distanceM,
+            calories: Int(activity.calories ?? 0),
+            avgHeartRate: activity.average_heartrate.map { Int($0) },
+            maxHeartRate: activity.max_heartrate.map { Int($0) }
+        )
+
+        let run = Run(
+            id: runId,
+            fileName: "strava-\(activity.id).json",
+            sport: "Running",
+            startTime: startTime,
+            totalDistanceM: distanceM,
+            totalTimeS: timeS,
+            calories: Int(activity.calories ?? 0),
+            avgPaceMinPerKm: avgPace,
+            maxSpeedMps: activity.max_speed ?? 0,
+            elevationGainM: activity.total_elevation_gain ?? 0,
+            elevationLossM: elevationLossM,
+            startLat: startLat,
+            startLng: startLng,
+            category: RunCategory.from(distanceM: distanceM),
+            avgHeartRate: activity.average_heartrate.map { Int($0) },
+            maxHeartRate: activity.max_heartrate.map { Int($0) },
+            laps: [synthLap],
+            dataSource: .strava
+        )
+        modelContext.insert(run)
+
+        let captured = trackpoints
+        Task.detached { TrackpointStore.saveTrackpoints(runId: runId, trackpoints: captured) }
     }
 
     private func clearAllData() {

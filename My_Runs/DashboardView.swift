@@ -7,6 +7,7 @@ struct DashboardView: View {
     @Query(sort: [SortDescriptor(\Run.startTime, order: .reverse)]) private var runs: [Run]
     @State private var activeSheet: SheetType?
     @State private var chartMode: ChartMode = .monthly
+    @State private var showSettings = false
 
     enum ChartMode: String, CaseIterable { case monthly = "Monthly", yearly = "Yearly" }
 
@@ -57,8 +58,21 @@ struct DashboardView: View {
             }
             .background(Theme.bgPrimary)
             .navigationTitle("Dashboard")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .foregroundStyle(Theme.accent)
+                    }
+                }
+            }
             .sheet(item: $activeSheet) { sheet in
                 sheetContent(sheet)
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
         }
     }

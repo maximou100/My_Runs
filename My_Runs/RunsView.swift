@@ -228,6 +228,10 @@ struct RunRowView: View {
                 Label("Fitness", systemImage: "heart.fill")
                     .foregroundStyle(.pink)
                     .background(.pink.opacity(0.15), in: Capsule())
+            case .strava:
+                Label("Strava", systemImage: "figure.run")
+                    .foregroundStyle(Color(hex: "fc5200"))
+                    .background(Color(hex: "fc5200").opacity(0.15), in: Capsule())
             }
         }
         .font(.caption2.bold())

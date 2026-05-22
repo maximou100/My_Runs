@@ -4,6 +4,7 @@ import SwiftData
 enum DataSource: String, Codable {
     case tcx
     case healthKit
+    case strava
 }
 
 enum RunCategory: String, Codable, CaseIterable {
