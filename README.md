@@ -1,6 +1,6 @@
 # My Runs
 
-A personal running tracker for iOS that imports your historical runs from TCX files and Apple Health, then turns them into a fast, beautiful dashboard you actually want to open.
+A personal running tracker for iOS that pulls your historical runs from Strava, Apple Health, and your own activity files (`.tcx`, `.gpx`, `.fit`), then turns them into a fast, beautiful dashboard you actually want to open.
 
 Built natively in SwiftUI + SwiftData for iOS 17+, with CloudKit sync across devices, full Apple Health integration, and zero third-party dependencies.
 
@@ -9,10 +9,12 @@ Built natively in SwiftUI + SwiftData for iOS 17+, with CloudKit sync across dev
 ## Features
 
 ### Run management
-- **Bulk TCX import** — drop in hundreds of Nike Run Club exports in one go
+- **Direct Strava sync** — connect your account once via OAuth, then one tap pulls all your Run / TrailRun / VirtualRun activities with GPS streams, heart rate, and elevation
+- **Multi-format file import** — `.tcx`, `.gpx`, and `.fit` files import natively (no third-party conversion). Works with exports from Garmin Connect, Runkeeper, Nike Run Club, Strava bulk archives, and most other fitness platforms
+- **In-app setup guides** — built-in tutorials for Strava API setup, Garmin Connect exports, and Runkeeper exports, with clickable links to the right pages
 - **Apple Health import** — pull running workouts (with GPS routes) from Apple Watch and the Fitness app
-- **Apple Health export** — push your imported TCX runs back into Health as proper workouts
-- **Per-run data source badges** so you always know where a run came from
+- **Apple Health export** — push your imported runs back into Health as proper workouts
+- **Per-run data source badges** so you always know where a run came from (TCX, Strava, Apple Health)
 
 ### Insights
 - **Dashboard** — total distance, total time, calories, country count, monthly/yearly distance chart, 30-day pace trend, distance distribution, day-of-week breakdown, GitHub-style activity heatmap
@@ -40,7 +42,8 @@ Built natively in SwiftUI + SwiftData for iOS 17+, with CloudKit sync across dev
 | Persistence | SwiftData (with CloudKit) |
 | Health | HealthKit (`HKWorkoutRouteQueryDescriptor`, `HKQuantityType` heart rate samples) |
 | Location | CoreLocation (`CLGeocoder`, no authorization required) |
-| Parsing | Custom XMLParser-based TCX parser with lap and trackpoint extraction |
+| Strava | `ASWebAuthenticationSession` OAuth + Keychain-stored tokens + Strava v3 REST + streams API |
+| Parsing | Custom XMLParser-based parsers for TCX and GPX, plus a from-scratch binary parser for Garmin's `.fit` protocol |
 | Concurrency | Swift `async/await`, `TaskGroup`, `Task.detached`, `nonisolated` types |
 
 No dependencies. No CocoaPods. No Swift Package Manager. Just Apple frameworks.
@@ -54,14 +57,18 @@ My_Runs/
 ├── My_RunsApp.swift          App entry, ModelContainer + CloudKit config
 ├── ContentView.swift         TabView root
 ├── Models.swift              Run, Lap, StoredTrackpoints, TrackpointData
-├── DashboardView.swift       KPIs and charts
+├── DashboardView.swift       KPIs and charts (Settings gear in the toolbar)
 ├── RunsView.swift            Filterable list of runs
 ├── RunDetailView.swift       Map, charts, splits, playback
 ├── RecordsView.swift         Race PRs and best splits
 ├── HealthView.swift          Apple Health import / export
-├── ImportView.swift          TCX file picker and batch import
+├── ImportView.swift          File picker + import flow + Strava/Garmin/Runkeeper cards
+├── ImportGuides.swift        In-app tutorial sheets: Strava setup, Garmin, Runkeeper
+├── StravaService.swift       Strava OAuth, token refresh, activities + streams API
 ├── SettingsView.swift        Units + delete-all-data
 ├── TCXParser.swift           Streaming TCX → TrackpointData
+├── GPXParser.swift           Streaming GPX → TrackpointData (Haversine distance)
+├── FITParser.swift           Binary Garmin FIT protocol parser
 ├── TrackpointStore.swift     Disk + cloud cache for trackpoint blobs
 ├── HealthKitService.swift    HK auth, workouts, routes, HR samples
 ├── GeocodingService.swift    CLGeocoder wrapper with caching
@@ -126,6 +133,44 @@ Items to complete in App Store Connect before submission:
 - App Privacy Details: Health & Fitness + Coarse Location, linked to user, app functionality, no tracking
 - App description must mention HealthKit
 - CloudKit schema: promote dev → production
+
+---
+
+## Changelog
+
+### v1.1
+
+**Import sources**
+- **Strava direct sync** via OAuth (`ASWebAuthenticationSession`), tokens stored in Keychain with automatic refresh. One tap pulls Run / TrailRun / VirtualRun activities, downloads GPS streams, and dedups on re-sync.
+- **In-app Strava setup tutorial** — 4-step walkthrough with a clickable link to `strava.com/settings/api`. Users can paste their own Client ID / Secret (stored in Keychain) to get a private rate-limit pool; bundled credentials remain as a fallback.
+- **Garmin Connect guide** — three documented paths: Apple Health bridge, single-activity export, bulk archive request.
+- **Runkeeper guide** — single-activity and bulk export documented.
+
+**File format support**
+- **`.gpx` parser** — XML-based, Haversine distance computation, namespace-aware element matching, GPX TrackPointExtension support (heart rate, speed).
+- **`.fit` parser** — binary Garmin FIT protocol implemented from scratch: header validation, definition + data messages, all base types with invalid-sentinel handling, semicircles-to-degrees, FIT-epoch timestamps. Handles `file_id`, `record`, `lap`, `session`, `activity` messages.
+- **Unified import pipeline** — `ImportView` dispatches by extension; `.tcx` files save raw bytes (re-parseable), `.gpx` / `.fit` save normalized trackpoints as JSON.
+
+**Data & UI**
+- New `DataSource.strava` case with an orange `figure.run` badge in the runs list.
+- Strava sync card in the Import tab with Connect / Sync / Disconnect states.
+- Settings moved from tab bar to a gear button on the Dashboard toolbar.
+- URL scheme `myruns://` registered for OAuth callbacks.
+
+**Reliability**
+- Improved Strava error reporting: captures response body, dedicated handling for 401 (re-auth) and 429 (rate-limit).
+- Target narrowed to iPhone (`TARGETED_DEVICE_FAMILY=1`).
+
+### v1.0
+
+- TCX file import (Nike Run Club, Garmin TCX exports)
+- Apple Health import (workouts, GPS routes, heart rate samples) and export
+- Dashboard, Records, Run Detail, Runs list
+- CloudKit sync across devices
+- Reverse geocoding (city + country)
+- Configurable units (km/miles, pace, elevation)
+- Privacy Manifest, HealthKit usage descriptions, Settings → Delete All Data
+- App Store assets: privacy policy, GitHub Pages site, listing copy
 
 ---
 
